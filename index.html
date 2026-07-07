@@ -27,7 +27,9 @@
     <meta property="og:description" content="Treine sua memória de trabalho com o Dual N-Back, em português e otimizado para celular.">
     <title>Dual N-Back em Português</title>
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🧠</text></svg>">
-
+    <!-- Cloudflare Web Analytics -->
+    <script defer src='https://static.cloudflareinsights.com/beacon.min.js' data-cf-beacon='{"token": "eb6eb3eafa074e4c98983ec71462d381"}'></script>
+    <!-- End Cloudflare Web Analytics -->
     <style>
         * { box-sizing: border-box; }
 
@@ -538,6 +540,7 @@
         $('game-title').textContent = `N = ${N}`;
         $('vis_button').style.backgroundColor = '#d9d9d9';
         $('letter_button').style.backgroundColor = '#d9d9d9';
+        resetBoardAnimations();
         showScreen('game');
     }
 
@@ -672,6 +675,15 @@
             elm.style.animation = '';
             elm.style.animationPlayState = 'running';
         }
+    }
+
+    function resetBoardAnimations() {
+        Array.from(document.getElementsByClassName('box')).forEach(elm => {
+            elm.style.animation = 'none';
+            elm.style.animationPlayState = '';
+            void elm.getBoundingClientRect();
+            elm.style.animation = '';
+        });
     }
 
     function eyeButtonPress() {
@@ -828,7 +840,6 @@
         initAudio().then(function () {
             if (myInterval > 0) clearInterval(myInterval);
             myInterval = setInterval(doTimestep, iFrequency);
-            doTimestep(); // primeiro passo imediato
         }).catch(function () {
             alert('Não foi possível carregar o áudio neste navegador.');
             window.history.back();
