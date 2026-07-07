@@ -1,41 +1,34 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides guidance to Claude Code, Codex, Cursor and other code agents when working with code in this repository.
 
 ## Project Overview
 
-A personal, Brazilian Portuguese (pt-BR) implementation of the Dual N-Back brain-training exercise. The entire app is a single static file, `jogo.html`, with no dependencies, build step, or package manager — just HTML, CSS, and vanilla JS in one `<script>` block.
+A Brazilian Portuguese (pt-BR), mobile-first port of the Dual N-Back brain-training game at [dual-n-back.io](https://dual-n-back.io) (GPL v3, by Jonathan Perry-Houts — source at github.com/jperryhouts/Dual-N-Back). The goal is behavior-identical gameplay to that reference, localized to pt-BR, deployable on GitHub Pages. The entire app is a single static file, `index.html`, with no dependencies or build step — HTML, CSS, vanilla JS, and the recorded letter audio embedded as base64.
 
 ## Running the App
 
-There is no build/lint/test tooling in this repo. To run the game, open `jogo.html` directly in a browser:
+No build/lint/test tooling. Open `index.html` directly in a browser (`open index.html`) — audio is embedded, so it works from `file://` and over HTTP alike. Deploy = push to GitHub and enable Pages on the repo root.
 
-```
-open jogo.html
-```
+## Architecture (all in `index.html`)
 
-The audio channel uses the browser's built-in Web Speech API (`SpeechSynthesisUtterance`), so it must be run in an actual browser (not headless) and voice quality/availability for `pt-BR` depends on the OS/browser's installed voices.
+- **Screens**: five absolutely-positioned `.screen` divs toggled by `showScreen()` — home (`N = X`, play button, `X / 20 hoje` counter), game (8-square SVG board, eye/speaker buttons), score (per-channel Acertos/Erros/Alarmes falsos table, colored d′ and N), help (instructions/credits) and stats (charts) — plus a slide-in config drawer (`#menu` + `#shader`). Navigation mirrors the reference: `history.pushState`/`onpopstate`, so the phone's back button works.
+- **Game logic is a 1:1 port of the reference's `js/logic.js`** — same function names (`buildGameSequence`, `calculateScore`, `doTimestep`, `startGame`, `get_n_games`…), same constants (`N_plus = 20` scored steps after `N` warm-ups, `iFrequency = 3000` ms per step via `setInterval`), same sequence guarantees (4 position-only + 4 sound-only + 2 double matches per round, non-match steps use the skip-the-excluded-value trick), same scoring (`d′ = hit rate − false-alarm rate` with the reference's hardcoded `/6` divisors; `> 0.85` levels up, `< 0.7` levels down, floor N=1, **no ceiling**), same click bookkeeping (clicks recorded as `time - 1` step indices with press delays). When changing gameplay behavior, diff against the reference source first (`curl -s -A "Mozilla/5.0" https://dual-n-back.io/js/logic.js`).
+- **Persistence**: localStorage keys `N`, `stats`, `config` with the *same JSON shapes as the reference*, so exported backups are interchangeable with dual-n-back.io's. `stats.games[]` entries: `{time, N, vStack, lStack, vClicks, lClicks, vDelays, lDelays, v}`. `config.reset_n` optionally resets N to 1 on the first play of each day. Init migrates the old `dualnback_n` key from the previous version of this app.
+- **Audio**: 14 pt-BR letter recordings (the user's own voice) embedded in `AUDIO_B64` (base64 m4a/AAC). The game uses 10 of them, listed in `LETTERS` — chosen by dropping the most confusable pt-BR letter names (cê≈zê, gê≈dê, êne≈ême, pê≈bê); edit that array to swap letters. Playback is Web Audio API: `initAudio()` must be called from a user gesture (iOS requirement — the play/replay buttons do this), decodes all buffers once, then `playLetter()` plays `AudioBufferSourceNode`s.
+- **Board flash**: the reference's paused-CSS-animation trick (`.box` with `fade 3s` keyframes, lit from 1%–17%); `setActiveBox()` restarts the animation via reflow instead of the original's node-cloning.
+- **Stats charts**: dependency-free SVG step charts (`drawStepChart`) — N per round and mean reaction time — with crosshair+tooltip on hover/touch, plus a `<details>` table of the last 20 rounds (d′ recomputed from stored stacks via `scoreRound`).
+- **Input**: `pointerdown` everywhere (fast on mobile); keyboard left = `a`/`d`/`j` (position), right = `;`/`f`/`k` (sound), per Blacker et al. 2017.
 
-## Architecture
+## Audio pipeline
 
-Everything lives in `jogo.html`:
+- `assets/audio/raw/<letter>_letra_NN.m4a` — original recordings, one letter each, filename's first character = the letter. Recorded letters: A B C D E F G M N P Q W Y Z.
+- `assets/audio/letras/<letter>.m4a` — peak-normalized, faded, AAC 48kbps mono versions (what gets base64-embedded).
+- `bash tools/gerar_audio.sh` regenerates everything and re-splices the `AUDIO_B64` block inside `index.html`. macOS-only (`afconvert`); `tools/normalize.py` is stdlib-only Python.
+- To add/replace a letter: drop the raw file in `assets/audio/raw/` with the naming convention, run the script, and (if the game should speak it) add its key to `LETTERS`.
 
-- **Markup**: a fixed top-right `.top-bar` with two icon buttons (`?` instructions, `⚙` settings) that toggle two overlays — `#settingsPanel` (N stepper, voice `<select>`, speed slider) and `#instructionsModal` (how-to-play text) — plus the static 3x3 grid (`#c0`–`#c8` cells), the POSIÇÃO/SOM/start buttons, and the hits/misses + level-adjustment message display.
-- **State**: global mutable variables — `n` (current N-back level, persisted in `localStorage['dualnback_n']`), `sequence` (the whole round pre-generated up front — array of `{pos, letterIdx, letter}` per step), `history` (append-only array of `{pos, letter, posClicked, letterClicked}` trial objects for the running session), `hits`, `misses`, `isPlaying`, `selectedVoice`, `speechRate` (persisted in `localStorage['dualnback_voiceURI']` / `['dualnback_rate']`).
-- **Sequence generation**: `buildSequence()` (ported from dual-n-back.io's `buildGameSequence()`) builds the entire round *before* it starts so match counts are guaranteed instead of left to per-trial chance. Round length is `n + SCORED_TRIALS` (= `n + 20`): the first `n` steps are warm-up (unscoreable), the remaining 20 are scored. It picks `POS_MATCHES - DOUBLE_MATCHES` (4) position-only match steps, `LETTER_MATCHES - DOUBLE_MATCHES` (4) sound-only match steps, and `DOUBLE_MATCHES` (2) double-match steps — so exactly 6 position + 6 sound repeats per round, 2 of them coinciding. Match steps copy the stimulus from `n` steps back; all other steps pick a value *guaranteed not to equal* the one `n` back (via the `if (v >= seq[i-n].x) v++` skip-the-excluded-value trick).
-- **Game loop**: `startGame()` resets state, calls `buildSequence()`, then `nextTurn()`. `nextTurn()` reads `sequence[history.length]`, pushes a trial record to `history`, shows/speaks it, then re-schedules itself via nested `setTimeout` calls until `history.length` reaches `sequence.length`, at which point it calls `applyLevelAdjustment()`.
-- **Stimulus timing**: display duration and inter-trial interval are hardcoded inside `nextTurn()`'s `setTimeout` calls (1000ms display, 2000ms gap between trials).
-- **Audio**: `speak()` wraps `SpeechSynthesisUtterance` with `lang` hardcoded to `pt-BR`, plus the selected `voice` and `rate`. `loadVoices()`/`populateVoiceSelect()` fill the voice `<select>` from `speechSynthesis.getVoices()` (re-run on `onvoiceschanged` since Chrome loads voices asynchronously), defaulting to: a saved `localStorage` choice, then a voice named like "Google português do Brasil", then any voice with `natural`/`enhanced`/`premium`/`neural` in its name, then the first available.
-- **Matching/scoring**: `checkMatch(type)` compares the latest `history` entry against the entry `n` steps back, flags `posClicked`/`letterClicked` on that trial (used later for the level algorithm), and increments the live `hits`/`misses` display counters. Invoked via the POSIÇÃO/SOM buttons or keyboard shortcuts (`A` = position, `L` = sound).
-- **Adaptive N-level**: `calculateLevelDelta()` runs once per completed round and computes a d′-style score (hit rate minus false-alarm rate, averaged across the position and audio channels) over the trials in `history`; `applyLevelAdjustment()` then moves `n` by ±1 (clamped to `[N_MIN, N_MAX]` = `[1, 9]`) and writes a colored message to `#level-msg`. The `> 0.85` level-up / `< 0.7` level-down thresholds mirror the logic in the reference app [dual-n-back.io](https://dual-n-back.io) (`js/logic.js`, `calculateScore()`). Because `buildSequence()` now guarantees exactly 6 position + 6 sound matches per round (same as the reference's generator), `calculateLevelDelta()` divides by the actual counted matches/non-matches — which equals the reference's hardcoded `/6` and `/(len-6)` divisors, but stays correct even if the match counts are ever tuned. `n` can also be changed manually via the settings panel's stepper, which is disabled while `isPlaying`.
-- **Rendering**: `showPos()`/`clearGrid()` toggle the `.active` CSS class directly via DOM queries; `toggleSettings()`/`toggleInstructions()` toggle an `.open` class on the two overlays (mutually exclusive) — no framework or virtual DOM.
+## Conventions
 
-## Current Hardcoded Parameters
-
-- Session length: `n + SCORED_TRIALS` steps per round (`SCORED_TRIALS = 20` scored + `n` warm-up); loop ends when `history.length` reaches `sequence.length`.
-- Guaranteed matches per round: `POS_MATCHES = 6` position + `LETTER_MATCHES = 6` sound, of which `DOUBLE_MATCHES = 2` coincide on the same step.
-- Stimulus/interval timing: 1000ms display + 2000ms gap, hardcoded in `nextTurn`'s `setTimeout` calls (3000ms/step, matching the reference's `iFrequency`).
-- Audio stimulus set: fixed 6-letter array (`A`–`F`); grid has `NUM_POSITIONS = 9` cells.
-- N-level bounds: `N_MIN = 1`, `N_MAX = 9`.
-
-All UI strings and spoken audio are in Portuguese (pt-BR) — keep new user-facing text consistent with that. The instructions modal text is adapted/translated from dual-n-back.io's own instructions (fetched from its page source), not a verbatim copy, since this app's controls (button labels, 9-cell grid) differ from the reference.
+- All UI strings and spoken audio are pt-BR; keep new user-facing text consistent with that.
+- License is GPL v3 (derivative of GPL code) — keep the header notice in `index.html` and credits in the help screen intact.
+- `screenshots/` holds reference screenshots of dual-n-back.io used during development; it is gitignored, not part of the app.
