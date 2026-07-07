@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>Treino Dual N-Back PT-BR</title>
+    <style>
+        body { font-family: sans-serif; display: flex; flex-direction: column; align-items: center; background: #222; color: #fff; }
+        .grid { display: grid; grid-template-columns: repeat(3, 100px); gap: 10px; margin-top: 20px; }
+        .cell { width: 100px; height: 100px; background: #444; border: 2px solid #555; }
+        .active { background: #3498db; }
+        .controls { margin-top: 20px; }
+        button { padding: 10px 20px; font-size: 16px; cursor: pointer; background: #27ae60; border: none; color: white; border-radius: 5px; }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+        .stats { margin-top: 10px; font-size: 18px; }
+        .level-msg { margin-top: 8px; font-size: 16px; font-weight: bold; min-height: 20px; }
+        .level-up { color: #2ecc71; }
+        .level-down { color: #e74c3c; }
+        .level-same { color: #bbb; }
+
+        .top-bar { position: fixed; top: 15px; right: 15px; display: flex; gap: 8px; z-index: 20; }
+        .icon-btn { width: 42px; height: 42px; border-radius: 50%; padding: 0; font-size: 20px; display: flex; align-items: center; justify-content: center; background: #555; }
+
+        .settings { display: none; flex-direction: column; gap: 10px; align-items: center; position: fixed; top: 62px; right: 15px; background: #2c2c2c; border-radius: 8px; padding: 15px 20px; box-shadow: 0 4px 14px rgba(0,0,0,0.5); z-index: 25; }
+        .settings.open { display: flex; }
+        .setting-row { display: flex; align-items: center; gap: 10px; }
+        .setting-row button { padding: 5px 14px; font-size: 16px; }
+        select { font-size: 14px; padding: 4px; }
+
+        .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6); align-items: center; justify-content: center; z-index: 30; }
+        .modal-overlay.open { display: flex; }
+        .modal-box { background: #2c2c2c; border-radius: 10px; padding: 25px 30px; max-width: 460px; width: 85%; max-height: 80vh; overflow-y: auto; line-height: 1.5; }
+        .modal-box h2 { margin-top: 0; }
+    </style>
+</head>
+<body>
+    <div class="top-bar">
+        <button class="icon-btn" onclick="toggleInstructions()" title="Instruções" type="button">?</button>
+        <button class="icon-btn" onclick="toggleSettings()" title="Configurações" type="button">⚙</button>
+    </div>
+
+    <div class="settings" id="settingsPanel">
+        <div class="setting-row">
+            <span>Nível N:</span>
+            <button onclick="changeN(-1)" id="nDownBtn" type="button">-</button>
+            <span id="n-level">1</span>
+            <button onclick="changeN(1)" id="nUpBtn" type="button">+</button>
+        </div>
+        <div class="setting-row">
+            <label for="voiceSelect">Voz:</label>
+            <select id="voiceSelect"></select>
+            <button onclick="testVoice()" type="button">Testar Voz</button>
+        </div>
+        <div class="setting-row">
+            <label for="rateRange">Velocidade: <span id="rateVal">0.90</span>x</label>
+            <input type="range" id="rateRange" min="0.5" max="1.3" step="0.05" value="0.9">
+        </div>
+        <button onclick="toggleSettings()" type="button">Fechar</button>
+    </div>
+
+    <div class="modal-overlay" id="instructionsModal">
+        <div class="modal-box">
+            <h2>Como Jogar</h2>
+            <p>O Dual N-Back é um exercício para treinar a memória de trabalho, baseado na tarefa proposta por Jaeggi et al. (2003).</p>
+            <p>O objetivo é lembrar o estado do jogo exatamente <strong>N</strong> passos atrás.</p>
+            <p>O tabuleiro é uma grade de 9 quadrados. A cada poucos segundos, um deles acende. Quando você perceber que o <strong>mesmo quadrado</strong> acendeu exatamente N passos atrás, pressione o botão <strong>POSIÇÃO</strong> (ou a tecla <strong>A</strong>).</p>
+            <p>Ao mesmo tempo, uma letra é falada em cada passo. Quando você perceber que a <strong>mesma letra</strong> foi falada exatamente N passos atrás, pressione o botão <strong>SOM</strong> (ou a tecla <strong>L</strong>).</p>
+            <p>Cada rodada tem 20 jogadas avaliadas (as primeiras N servem só de aquecimento). Em toda rodada há sempre <strong>6 repetições de posição</strong> e <strong>6 de som</strong>, então nunca falta o que detectar. Se você for bem, o nível N sobe automaticamente na próxima rodada. Se não for tão bem, o nível N desce (nunca abaixo de N=1).</p>
+            <p>Use o ícone de engrenagem no canto superior direito para ajustar o nível N manualmente, trocar a voz ou a velocidade da fala.</p>
+            <button onclick="toggleInstructions()" type="button">Fechar</button>
+        </div>
+    </div>
+
+    <h1>Dual N-Back (Português)</h1>
+
+    <div class="grid" id="grid">
+        <div class="cell" id="c0"></div><div class="cell" id="c1"></div><div class="cell" id="c2"></div>
+        <div class="cell" id="c3"></div><div class="cell" id="c4"></div><div class="cell" id="c5"></div>
+        <div class="cell" id="c6"></div><div class="cell" id="c7"></div><div class="cell" id="c8"></div>
+    </div>
+
+    <div class="controls">
+        <button onclick="checkMatch('pos')">POSIÇÃO (A)</button>
+        <button onclick="checkMatch('audio')">SOM (L)</button>
+        <button onclick="startGame()" id="startBtn">Iniciar Teste</button>
+    </div>
+
+    <div class="stats">
+        Acertos: <span id="hits">0</span> | Erros: <span id="misses">0</span>
+    </div>
+    <div id="level-msg" class="level-msg"></div>
+
+    <script>
+        const N_MIN = 1;
+        const N_MAX = 9;
+
+        // Parâmetros da geração de sequência (espelham o dual-n-back.io):
+        // cada rodada tem N passos de "aquecimento" + SCORED_TRIALS passos avaliados,
+        // e a sequência é sorteada de antemão para GARANTIR um número fixo de repetições.
+        const SCORED_TRIALS = 20;   // passos avaliados por rodada (N_plus no dual-n-back.io)
+        const POS_MATCHES = 6;      // repetições de posição garantidas por rodada
+        const LETTER_MATCHES = 6;   // repetições de som garantidas por rodada
+        const DOUBLE_MATCHES = 2;   // quantas dessas coincidem (posição E som no mesmo passo)
+        const NUM_POSITIONS = 9;    // células da grade 3x3
+
+        let n = parseInt(localStorage.getItem('dualnback_n'), 10) || 1; // N-back (padrão: 1)
+        let history = []; // Armazena posições, letras e cliques do jogador
+        let sequence = []; // Rodada inteira, gerada antes de começar (posição + letra por passo)
+        let hits = 0;
+        let misses = 0;
+        let isPlaying = false;
+        const letters = ['A', 'B', 'C', 'D', 'E', 'F']; // Sons (exemplo visual)
+
+        let voices = [];
+        let selectedVoice = null;
+        let speechRate = parseFloat(localStorage.getItem('dualnback_rate')) || 0.9;
+
+        function startGame() {
+            if(isPlaying) return;
+            isPlaying = true;
+            hits = 0; misses = 0; history = [];
+            sequence = buildSequence();
+            updateStats();
+            const msg = document.getElementById('level-msg');
+            msg.textContent = '';
+            msg.className = 'level-msg';
+            document.getElementById('startBtn').innerText = "Rodando...";
+            document.getElementById('nDownBtn').disabled = true;
+            document.getElementById('nUpBtn').disabled = true;
+            nextTurn();
+        }
+
+        // Gera a rodada inteira de antemão, garantindo POS_MATCHES repetições de
+        // posição e LETTER_MATCHES repetições de som (DOUBLE_MATCHES delas no mesmo
+        // passo), como faz o buildGameSequence() do dual-n-back.io. Sem isso, sortear
+        // cada passo na hora deixava rodadas quase sem repetição nenhuma.
+        function buildSequence() {
+            const total = n + SCORED_TRIALS;
+            const numLetters = letters.length;
+
+            // Escolhe em quais passos avaliados (índices em [n, total)) haverá repetição.
+            const posMatches = new Set();
+            const letterMatches = new Set();
+            const randStep = () => n + Math.floor(Math.random() * SCORED_TRIALS);
+
+            while (posMatches.size < POS_MATCHES - DOUBLE_MATCHES) {
+                posMatches.add(randStep());
+            }
+            while (letterMatches.size < LETTER_MATCHES - DOUBLE_MATCHES) {
+                const idx = randStep();
+                if (!posMatches.has(idx)) letterMatches.add(idx);
+            }
+            let doubles = 0;
+            while (doubles < DOUBLE_MATCHES) {
+                const idx = randStep();
+                if (!posMatches.has(idx) && !letterMatches.has(idx)) {
+                    posMatches.add(idx);
+                    letterMatches.add(idx);
+                    doubles++;
+                }
+            }
+
+            const seq = [];
+            for (let i = 0; i < total; i++) {
+                let pos, letterIdx;
+
+                if (i >= n && posMatches.has(i)) {
+                    pos = seq[i - n].pos;                        // repetição forçada
+                } else if (i < n) {
+                    pos = Math.floor(Math.random() * NUM_POSITIONS);
+                } else {
+                    pos = Math.floor(Math.random() * (NUM_POSITIONS - 1)); // garante NÃO repetir
+                    if (pos >= seq[i - n].pos) pos++;
+                }
+
+                if (i >= n && letterMatches.has(i)) {
+                    letterIdx = seq[i - n].letterIdx;            // repetição forçada
+                } else if (i < n) {
+                    letterIdx = Math.floor(Math.random() * numLetters);
+                } else {
+                    letterIdx = Math.floor(Math.random() * (numLetters - 1)); // garante NÃO repetir
+                    if (letterIdx >= seq[i - n].letterIdx) letterIdx++;
+                }
+
+                seq.push({ pos, letterIdx, letter: letters[letterIdx] });
+            }
+            return seq;
+        }
+
+        function nextTurn() {
+            const item = sequence[history.length];
+
+            history.push({pos: item.pos, letter: item.letter, posClicked: false, letterClicked: false});
+            showPos(item.pos);
+            speak(item.letter); // Simula o áudio
+
+            setTimeout(() => {
+                clearGrid();
+                if (history.length < sequence.length) {
+                    setTimeout(nextTurn, 2000); // 2 segundos de intervalo (AJUSTE AQUI PARA FACILITAR)
+                } else {
+                    isPlaying = false;
+                    document.getElementById('startBtn').innerText = "Reiniciar";
+                    document.getElementById('nDownBtn').disabled = false;
+                    document.getElementById('nUpBtn').disabled = false;
+                    applyLevelAdjustment();
+                }
+            }, 1000); // 1 segundo de exibição
+        }
+
+        function showPos(index) {
+            clearGrid();
+            document.getElementById('c' + index).classList.add('active');
+        }
+
+        function clearGrid() {
+            document.querySelectorAll('.cell').forEach(c => c.classList.remove('active'));
+        }
+
+        function changeN(delta) {
+            if (isPlaying) return;
+            n = Math.min(N_MAX, Math.max(N_MIN, n + delta));
+            document.getElementById('n-level').textContent = n;
+            localStorage.setItem('dualnback_n', n);
+        }
+
+        // Calcula o ajuste de nível ao final da rodada, seguindo a mesma lógica
+        // (d' = taxa de acertos - taxa de falsos alarmes; > 0.85 sobe, < 0.7 desce) do dual-n-back.io
+        function calculateLevelDelta() {
+            let visHits = 0, visFalseAlarms = 0, visMatches = 0, visNonMatches = 0;
+            let letHits = 0, letFalseAlarms = 0, letMatches = 0, letNonMatches = 0;
+
+            for (let i = n; i < history.length; i++) {
+                const posMatch = history[i].pos === history[i - n].pos;
+                const letterMatch = history[i].letter === history[i - n].letter;
+
+                if (posMatch) {
+                    visMatches++;
+                    if (history[i].posClicked) visHits++;
+                } else {
+                    visNonMatches++;
+                    if (history[i].posClicked) visFalseAlarms++;
+                }
+
+                if (letterMatch) {
+                    letMatches++;
+                    if (history[i].letterClicked) letHits++;
+                } else {
+                    letNonMatches++;
+                    if (history[i].letterClicked) letFalseAlarms++;
+                }
+            }
+
+            const hitRate = ((visMatches ? visHits / visMatches : 1) + (letMatches ? letHits / letMatches : 1)) / 2;
+            const falseAlarmRate = ((visNonMatches ? visFalseAlarms / visNonMatches : 0) + (letNonMatches ? letFalseAlarms / letNonMatches : 0)) / 2;
+            const dPrime = hitRate - falseAlarmRate;
+
+            if (dPrime > 0.85) return 1;
+            if (dPrime < 0.7) return -1;
+            return 0;
+        }
+
+        function applyLevelAdjustment() {
+            const delta = calculateLevelDelta();
+            const before = n;
+            n = Math.min(N_MAX, Math.max(N_MIN, n + delta));
+            localStorage.setItem('dualnback_n', n);
+            document.getElementById('n-level').textContent = n;
+
+            const msg = document.getElementById('level-msg');
+            if (n > before) {
+                msg.textContent = `Mandou bem! Nível subiu para N=${n}.`;
+                msg.className = 'level-msg level-up';
+            } else if (n < before) {
+                msg.textContent = `Nível caiu para N=${n}. Continue tentando!`;
+                msg.className = 'level-msg level-down';
+            } else if (delta > 0) {
+                msg.textContent = `Mandou bem! N já está no máximo (${n}).`;
+                msg.className = 'level-msg level-up';
+            } else if (delta < 0) {
+                msg.textContent = `N já está no mínimo (${n}).`;
+                msg.className = 'level-msg level-same';
+            } else {
+                msg.textContent = `Nível mantido em N=${n}.`;
+                msg.className = 'level-msg level-same';
+            }
+        }
+
+        function loadVoices() {
+            const all = window.speechSynthesis.getVoices();
+            voices = all.filter(v => v.lang && v.lang.toLowerCase().startsWith('pt'));
+            if (voices.length === 0) voices = all; // sem voz em pt instalada: usa qualquer uma disponível
+            voices.sort((a, b) => a.name.localeCompare(b.name));
+            populateVoiceSelect();
+        }
+
+        function populateVoiceSelect() {
+            const select = document.getElementById('voiceSelect');
+            select.innerHTML = '';
+
+            if (voices.length === 0) {
+                const opt = document.createElement('option');
+                opt.textContent = 'Nenhuma voz disponível';
+                select.appendChild(opt);
+                selectedVoice = null;
+                return;
+            }
+
+            voices.forEach(v => {
+                const opt = document.createElement('option');
+                opt.value = v.voiceURI;
+                opt.textContent = `${v.name} (${v.lang})`;
+                select.appendChild(opt);
+            });
+
+            const savedURI = localStorage.getItem('dualnback_voiceURI');
+            let toSelect = voices.find(v => v.voiceURI === savedURI);
+            if (!toSelect) {
+                // Padrão pedido: voz "Google português do Brasil" (disponível no Chrome/Edge)
+                toSelect = voices.find(v => v.name.toLowerCase().includes('google') && v.lang.toLowerCase().startsWith('pt'));
+            }
+            if (!toSelect) {
+                const preferred = ['natural', 'enhanced', 'premium', 'neural'];
+                toSelect = voices.find(v => preferred.some(k => v.name.toLowerCase().includes(k)));
+            }
+            selectedVoice = toSelect || voices[0];
+            select.value = selectedVoice.voiceURI;
+        }
+
+        function testVoice() {
+            speak(letters[Math.floor(Math.random() * letters.length)]);
+        }
+
+        function speak(text) {
+            const msg = new SpeechSynthesisUtterance(text);
+            msg.lang = 'pt-BR';
+            if (selectedVoice) msg.voice = selectedVoice;
+            msg.rate = speechRate;
+            msg.pitch = 1;
+            window.speechSynthesis.speak(msg);
+        }
+
+        function checkMatch(type) {
+            if (!isPlaying || history.length <= n) return;
+            const current = history[history.length - 1];
+            const target = history[history.length - 1 - n];
+
+            if (type === 'pos') {
+                current.posClicked = true;
+                if (current.pos === target.pos) hits++; else misses++;
+            } else if (type === 'audio') {
+                current.letterClicked = true;
+                if (current.letter === target.letter) hits++; else misses++;
+            }
+            updateStats();
+        }
+
+        function updateStats() {
+            document.getElementById('hits').innerText = hits;
+            document.getElementById('misses').innerText = misses;
+        }
+
+        function toggleSettings() {
+            const panel = document.getElementById('settingsPanel');
+            const opening = !panel.classList.contains('open');
+            document.getElementById('instructionsModal').classList.remove('open');
+            panel.classList.toggle('open', opening);
+        }
+
+        function toggleInstructions() {
+            const modal = document.getElementById('instructionsModal');
+            const opening = !modal.classList.contains('open');
+            document.getElementById('settingsPanel').classList.remove('open');
+            modal.classList.toggle('open', opening);
+        }
+
+        // Atalhos de teclado
+        window.addEventListener('keydown', (e) => {
+            if(e.key === 'a' || e.key === 'A') checkMatch('pos');
+            if(e.key === 'l' || e.key === 'L') checkMatch('audio');
+        });
+
+        // Inicialização
+        document.getElementById('n-level').textContent = n;
+        document.getElementById('rateRange').value = speechRate;
+        document.getElementById('rateVal').textContent = speechRate.toFixed(2);
+        document.getElementById('voiceSelect').addEventListener('change', (e) => {
+            selectedVoice = voices.find(v => v.voiceURI === e.target.value) || null;
+            localStorage.setItem('dualnback_voiceURI', e.target.value);
+        });
+        document.getElementById('rateRange').addEventListener('input', (e) => {
+            speechRate = parseFloat(e.target.value);
+            document.getElementById('rateVal').textContent = speechRate.toFixed(2);
+            localStorage.setItem('dualnback_rate', speechRate);
+        });
+        loadVoices();
+        window.speechSynthesis.onvoiceschanged = loadVoices;
+    </script>
+</body>
+</html>
