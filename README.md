@@ -4,7 +4,7 @@ Versão em português brasileiro do jogo de treino cerebral **Dual N-Back**, ada
 [dual-n-back.io](https://dual-n-back.io) ([código original](https://github.com/jperryhouts/Dual-N-Back),
 GPL v3, de Jonathan Perry-Houts). Pensada para uso no celular.
 
-**Jogue:** abra o `index.html` no navegador — ou acesse a versão publicada no GitHub Pages.
+**Jogue:** acesse `https://windelimarcos.github.io/dual-n-back-ptbr/` ou baixe o repositório e abra o `index.html` no navegador.
 
 ## O que é
 
@@ -20,12 +20,6 @@ navegador. Praticar ~20 rodadas por dia melhora a memória de trabalho
 - `assets/audio/raw/` — gravações originais das 14 letras em pt-BR.
 - `assets/audio/letras/` — versões normalizadas/comprimidas usadas para gerar o base64.
 - `tools/gerar_audio.sh` — regenera os áudios e re-embute no `index.html` (macOS: usa `afconvert`).
-
-## Publicar no GitHub Pages
-
-1. Suba o repositório para o GitHub.
-2. Em *Settings → Pages*, escolha *Deploy from a branch*, branch `master`, pasta `/ (root)`.
-3. O jogo fica em `https://<seu-usuario>.github.io/<repo>/`.
 
 ## Licença
 
