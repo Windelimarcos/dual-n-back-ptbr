@@ -178,6 +178,26 @@
         .stats-table { width: 100%; border-collapse: collapse; font-size: 13px; }
         .stats-table th, .stats-table td { border-bottom: 1px solid #eee; padding: 4px 6px; }
         .stats-table th { color: #666; font-weight: bold; }
+        .stats-table tr.me td { background: #eaf3ff; font-weight: bold; }
+
+        .rank-btn {
+            background: #99ccff;
+            border-radius: 5px;
+            padding: 10px;
+            text-align: center;
+            cursor: pointer;
+            margin: 14px 0;
+            font-weight: bold;
+        }
+        #rank-name {
+            width: 100%;
+            padding: 10px;
+            font-size: 16px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            user-select: text;
+            -webkit-user-select: text;
+        }
 
         .back-btn { z-index: 3; position: absolute; left: 0; top: 0; cursor: pointer; }
     </style>
@@ -198,6 +218,9 @@
                 <circle cx="0" cy="0" r="10" fill="black"/>
                 <text x="0" y="0" fill="white" font-size="15" font-family="sans-serif" text-anchor="middle" dominant-baseline="central">?</text>
             </svg>
+        </div>
+        <div class="icon-corner" id="btn-rank" style="bottom:0;right:0" title="Ranking da família">
+            <svg viewBox="0 0 24 24" width="30" height="30" fill="#222"><path d="M19 5h-2V3H7v2H5c-1.1 0-2 .9-2 2v1c0 2.55 1.92 4.63 4.39 4.94.63 1.5 1.98 2.63 3.61 2.96V19H7v2h10v-2h-4v-3.1c1.63-.33 2.98-1.46 3.61-2.96C19.08 12.63 21 10.55 21 8V7c0-1.1-.9-2-2-2zM5 8V7h2v3.82C5.84 10.4 5 9.3 5 8zm14 0c0 1.3-.84 2.4-2 2.82V7h2v1z"/></svg>
         </div>
 
         <div style="position:absolute;left:0;top:35%;height:30%;width:100%">
@@ -318,6 +341,13 @@
                 A recomendação clássica de treino é de cerca de 20 rodadas por dia.
             </p>
 
+            <h3>Ranking da família</h3>
+            <p>
+                No troféu da tela inicial você pode entrar no ranking com um nome de usuário:
+                cada rodada concluída vale N pontos e a disputa recomeça toda segunda-feira,
+                então constância vale tanto quanto nível. Participar é opcional.
+            </p>
+
             <h3>Créditos</h3>
             <p>
                 Adaptação em português do jogo livre
@@ -370,6 +400,51 @@
         </div>
     </div>
 
+    <!-- ===================== RANKING DA FAMÍLIA ===================== -->
+    <div class="screen scrollable" id="screen-rank" hidden>
+        <svg class="back-btn" id="rank-back" viewBox="0 0 50 50" width="50" height="50" style="position:fixed">
+            <rect style="opacity:0" width="50" height="50" fill="white"/>
+            <polygon points="17,25 33,35 33,15" fill="black"/>
+        </svg>
+        <div class="prose">
+            <h1 style="text-align:center">🏆 Ranking da família</h1>
+
+            <div id="rank-join" hidden>
+                <p>
+                    Compita de forma saudável: cada rodada concluída vale <strong>N pontos</strong>
+                    e os pontos <strong>zeram toda segunda-feira</strong> — semana nova, chance nova
+                    para todo mundo, independentemente do nível de cada um.
+                </p>
+                <p>
+                    Para participar, escolha um nome de usuário. Ele é o seu identificador único:
+                    use sempre o mesmo, e cada pessoa da família deve ter o seu — quem digitar o
+                    nome de outra pessoa entra no lugar dela.
+                </p>
+                <input id="rank-name" maxlength="20" placeholder="Seu nome" autocomplete="off">
+                <div class="rank-btn" id="rank-enter">Participar</div>
+                <p style="font-size:12px;color:#666">
+                    Só vão para o ranking: nome, nível N, recorde, pontos e rodadas da semana —
+                    nada mais sai do seu aparelho.
+                </p>
+            </div>
+
+            <div id="rank-board" hidden>
+                <p id="rank-status" style="text-align:center;color:#666"></p>
+                <table class="stats-table" id="rank-table">
+                    <thead>
+                        <tr><th></th><th style="text-align:left">Nome</th><th>Pontos</th><th>Rodadas</th><th>N</th><th>Recorde</th></tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+                <p style="font-size:12px;color:#666">
+                    Pontos da semana: cada rodada concluída vale N pontos; tudo zera na segunda-feira.
+                    🔥 = dias seguidos de treino · Recorde = maior N já alcançado.
+                </p>
+                <div class="rank-btn" id="rank-leave" style="background:#eee;font-weight:normal">Sair do ranking</div>
+            </div>
+        </div>
+    </div>
+
     <!-- ===================== MENU DE CONFIGURAÇÕES ===================== -->
     <div id="shader"></div>
     <div id="menu">
@@ -414,7 +489,7 @@
             <span>Apagar dados locais</span>
         </div>
 
-        <div style="position:absolute;bottom:4pt;left:8pt;font-size:12px;color:#888">versão 1.0 · pt-BR</div>
+        <div style="position:absolute;bottom:4pt;left:8pt;font-size:12px;color:#888">versão 1.1 · pt-BR</div>
     </div>
 
     <script>
@@ -522,7 +597,7 @@
     }
 
     // ================= NAVEGAÇÃO ENTRE TELAS =================
-    const SCREENS = ['home', 'game', 'score', 'help', 'stats'];
+    const SCREENS = ['home', 'game', 'score', 'help', 'stats', 'rank'];
     function showScreen(name) {
         SCREENS.forEach(s => { $('screen-' + s).hidden = (s !== name); });
     }
@@ -569,6 +644,8 @@
     function goto_help() { hide_menu(); showScreen('help'); }
 
     function goto_stats() { hide_menu(); renderStats(); showScreen('stats'); }
+
+    function goto_rank() { hide_menu(); renderRank(); showScreen('rank'); }
 
     // ================= MENU DE CONFIGURAÇÕES =================
     function setToggleState(e, state) {
@@ -754,6 +831,7 @@
             updateStats();
             N = Math.max(1, N + calculateScore());
             localStorage.setItem('N', N);
+            rankPush(); // atualiza o ranking da família em segundo plano
             window.history.replaceState({ 'page': 'score' }, '', '');
             goto_score();
         }
@@ -973,12 +1051,147 @@
         });
     }
 
+    // ================= RANKING DA FAMÍLIA (kvdb.io) =================
+    // Bucket compartilhado no kvdb.io. No plano gratuito as chaves expiram
+    // após ~3 meses sem escrita, mas cada aparelho recalcula e regrava o
+    // próprio registro (derivado só do histórico local) a cada sincronização,
+    // então o ranking se auto-recupera enquanto a pessoa jogar.
+    const RANK_URL = 'https://kvdb.io/MNFCBsWc1AgQSR3BeNQrq6';
+
+    // Nome → chave estável: minúsculas, sem acentos, só [a-z0-9-]
+    function rankSlug(name) {
+        return String(name).trim().toLowerCase()
+            .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+            .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
+            .slice(0, 24);
+    }
+
+    // Semana ISO (segunda a domingo), ex.: "2026-S28" — é o ciclo do ranking
+    function isoWeekKey(d) {
+        const t = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+        const dow = (t.getUTCDay() + 6) % 7; // 0 = segunda
+        t.setUTCDate(t.getUTCDate() - dow + 3); // quinta-feira da mesma semana
+        const thursday = t.valueOf();
+        t.setUTCMonth(0, 1);
+        if (t.getUTCDay() !== 4) t.setUTCMonth(0, 1 + ((4 - t.getUTCDay()) + 7) % 7);
+        const week = 1 + Math.ceil((thursday - t) / 604800000);
+        return new Date(thursday).getUTCFullYear() + '-S' + String(week).padStart(2, '0');
+    }
+
+    function rankDayKey(d) { return d.getFullYear() + '-' + d.getMonth() + '-' + d.getDate(); }
+
+    // Dias seguidos com pelo menos 1 rodada (continua "vivo" se jogou ontem)
+    function computeStreak() {
+        const days = new Set(stats['games'].map(g => rankDayKey(new Date(g.time))));
+        let d = new Date(), streak = 0;
+        if (!days.has(rankDayKey(d))) d.setDate(d.getDate() - 1);
+        while (days.has(rankDayKey(d))) { streak += 1; d.setDate(d.getDate() - 1); }
+        return streak;
+    }
+
+    // Registro enviado ao ranking — recalculado do zero a partir do histórico
+    // local, para nunca acumular divergência com o servidor.
+    function computeMyRankEntry() {
+        const wk = isoWeekKey(new Date());
+        let pts = 0, rounds = 0, best = N;
+        stats['games'].forEach(g => {
+            if (g.N > best) best = g.N;
+            if (isoWeekKey(new Date(g.time)) === wk) { pts += g.N; rounds += 1; }
+        });
+        return {
+            name: cfg['rank_user'], n: N, best: best, wk: wk,
+            pts: pts, rounds: rounds, streak: computeStreak(), up: Date.now()
+        };
+    }
+
+    // POST simples (sem preflight de CORS); nunca rejeita — falha silenciosa
+    function rankPush() {
+        if (!cfg['rank_user']) return Promise.resolve();
+        return fetch(RANK_URL + '/u_' + rankSlug(cfg['rank_user']), {
+            method: 'POST', body: JSON.stringify(computeMyRankEntry())
+        }).catch(function () { });
+    }
+
+    function rankFetchAll() {
+        return fetch(RANK_URL + '/?prefix=u_&values=true&format=json&limit=100')
+            .then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); })
+            .then(function (list) {
+                return list.map(function (item) {
+                    let v = Array.isArray(item) ? item[1] : (item && item.value);
+                    if (typeof v === 'string') { try { v = JSON.parse(v); } catch (err) { v = null; } }
+                    return v;
+                }).filter(function (v) { return v && v.name; });
+            });
+    }
+
+    function drawRankTable(users) {
+        const wk = isoWeekKey(new Date());
+        users.forEach(u => { if (u.wk !== wk) { u.pts = 0; u.rounds = 0; } });
+        users.sort((a, b) => (b.pts - a.pts) || (b.best - a.best)
+            || String(a.name).localeCompare(String(b.name)));
+        const meSlug = rankSlug(cfg['rank_user'] || '');
+        const tbody = $('rank-table').getElementsByTagName('tbody')[0];
+        tbody.innerHTML = '';
+        users.forEach((u, i) => {
+            const tr = document.createElement('tr');
+            if (rankSlug(u.name) === meSlug) tr.className = 'me';
+            const pos = (u.pts > 0 && i < 3) ? ['🥇', '🥈', '🥉'][i] : (i + 1) + 'º';
+            const streak = u.streak >= 2 ? ' 🔥' + u.streak : '';
+            [pos, String(u.name) + streak, u.pts, u.rounds, u.n, u.best].forEach((val, col) => {
+                const td = document.createElement('td');
+                td.textContent = val; // textContent: nomes vêm do servidor
+                if (col === 1) td.style.textAlign = 'left';
+                tr.appendChild(td);
+            });
+            tbody.appendChild(tr);
+        });
+    }
+
+    function renderRank() {
+        const joined = !!cfg['rank_user'];
+        $('rank-join').hidden = joined;
+        $('rank-board').hidden = !joined;
+        if (!joined) return;
+        $('rank-status').textContent = 'Atualizando…';
+        rankPush().then(rankFetchAll).then(function (users) {
+            drawRankTable(users);
+            if (users.length === 0)
+                $('rank-status').textContent = 'Ninguém no ranking ainda — jogue uma rodada!';
+            else if (!users.some(u => rankSlug(u.name) === rankSlug(cfg['rank_user'])))
+                $('rank-status').textContent = 'Seus pontos ainda não subiram — confira a internet e volte aqui.';
+            else
+                $('rank-status').textContent = '';
+        }).catch(function () {
+            $('rank-status').textContent = 'Sem internet — não deu para atualizar o ranking agora.';
+        });
+    }
+
+    function rankJoin() {
+        const name = $('rank-name').value.trim().replace(/\s+/g, ' ');
+        if (rankSlug(name).length < 2) {
+            alert('Escolha um nome com pelo menos 2 letras ou números.');
+            return;
+        }
+        cfg['rank_user'] = name;
+        localStorage.setItem('config', JSON.stringify(cfg));
+        renderRank();
+    }
+
+    function rankLeave() {
+        if (!confirm('Sair do ranking? Seu nome será removido da lista da família.')) return;
+        fetch(RANK_URL + '/u_' + rankSlug(cfg['rank_user']), { method: 'DELETE' }).catch(function () { });
+        delete cfg['rank_user'];
+        localStorage.setItem('config', JSON.stringify(cfg));
+        renderRank();
+    }
+
     // ================= HISTÓRICO / BOTÃO VOLTAR DO CELULAR =================
     window.onpopstate = function (event) {
         if (event.state == null || event.state['page'] == 'home') goto_home();
         else if (event.state['page'] == 'score') goto_score();
         else if (event.state['page'] == 'help') goto_help();
         else if (event.state['page'] == 'stats') goto_stats();
+        else if (event.state['page'] == 'rank') goto_rank();
     };
 
     // ================= LIGAÇÃO DOS EVENTOS =================
@@ -991,12 +1204,17 @@
     bind('btn-config', function () { window.history.pushState({ 'page': 'config' }, '', ''); show_menu(); });
     bind('btn-help', function () { window.history.pushState({ 'page': 'help' }, '', ''); goto_help(); });
     bind('btn-stats', function () { window.history.pushState({ 'page': 'stats' }, '', ''); goto_stats(); });
+    bind('btn-rank', function () { window.history.pushState({ 'page': 'rank' }, '', ''); goto_rank(); });
     bind('vis_button', eyeButtonPress);
     bind('letter_button', soundButtonPress);
     bind('game-back', function () { window.history.back(); });
     bind('score-back', function () { window.history.back(); });
     bind('help-back', function () { window.history.back(); });
     bind('stats-back', function () { window.history.back(); });
+    bind('rank-back', function () { window.history.back(); });
+    bind('rank-enter', rankJoin);
+    bind('rank-leave', rankLeave);
+    $('rank-name').addEventListener('keydown', function (e) { if (e.key === 'Enter') rankJoin(); });
     bind('menu-back', function () { window.history.back(); });
     bind('reset_n', toggle_reset_n);
     bind('level_down', function () { set_n(N - 1); });
